@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!-- The COPYRIGHT file at the top level of this repository contains the full
+     copyright notices and license terms. -->
+<data>
+    <xpath
+        expr="/form/notebook/page[@id='general']/field[@name='currency']"
+        position="after">
+        <newline/>
+        <label name="income_stock_move"/>
+        <field name="income_stock_move"/>
+        <label name="expense_stock_move"/>
+        <field name="expense_stock_move"/>
+    </xpath>
+</data>
