@@ -304,10 +304,10 @@ class Move:
 
         if self.shipment:
             base_vals['reference'] = self.shipment.reference
-            if getattr(self.shipment, 'customer'):
+            if hasattr(self.shipment, 'customer'):
                 base_vals['party'] = self.shipment.customer.id
-            elif getattr(self.shipment, 'supplier'):
-                base_vals['party'] = self.supplier.customer.id
+            elif hasattr(self.shipment, 'supplier'):
+                base_vals['party'] = self.shipment.supplier.id
 
         lines_vals = []
         for account in analytic_accounts:
