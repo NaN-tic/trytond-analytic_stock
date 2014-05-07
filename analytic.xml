@@ -10,5 +10,14 @@
             <field name="inherit" ref="analytic_account.line_view_form"/>
             <field name="name">analytic_line_form</field>
         </record>
+
+        <record model="ir.model.access" id="access_analytic_line_stock">
+            <field name="model" search="[('model', '=', 'analytic_account.line')]"/>
+            <field name="group" ref="stock.group_stock"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_delete" eval="True"/>
+        </record>
     </data>
 </tryton>
