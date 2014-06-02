@@ -57,10 +57,10 @@ class Location:
         return fields
 
     @classmethod
-    def default_get(cls, fields, with_rec_name=True):
+    def default_get(cls, fields, with_rec_name=True, with_on_change=False):
         fields = [x for x in fields if not x.startswith('analytic_account_')]
         return super(Location, cls).default_get(fields,
-            with_rec_name=with_rec_name)
+            with_rec_name=with_rec_name, with_on_change=with_on_change)
 
     @classmethod
     def read(cls, ids, fields_names=None):
@@ -105,6 +105,7 @@ class Location:
     def create(cls, vlist):
         Selection = Pool().get('analytic_account.account.selection')
         vlist = [x.copy() for x in vlist]
+        to_write = []
         for vals in vlist:
             selection_vals = {}
             for field in vals.keys():
@@ -115,48 +116,66 @@ class Location:
                                 [vals[field]]))
                     del vals[field]
             if vals.get('analytic_accounts'):
-                Selection.write([Selection(vals['analytic_accounts'])],
-                    selection_vals)
+                to_write.extend(([Selection(vals['analytic_accounts'])],
+                    selection_vals))
             else:
                 selection, = Selection.create([selection_vals])
                 vals['analytic_accounts'] = selection.id
+
+        if to_write:
+            Selection.write(*to_write)
+
         return super(Location, cls).create(vlist)
 
     @classmethod
-    def write(cls, locations, vals):
+    def write(cls, *args):
         Selection = Pool().get('analytic_account.account.selection')
-        vals = vals.copy()
-        selection_vals = {}
-        for field in vals.keys():
-            if field.startswith('analytic_account_'):
-                root_id = int(field[len('analytic_account_'):])
-                selection_vals[root_id] = vals[field]
-                del vals[field]
-        if selection_vals:
-            for location in locations:
-                accounts = []
-                if not location.analytic_accounts:
-                    # Create missing selection
-                    with Transaction().set_user(0):
-                        selection, = Selection.create([{}])
-                    cls.write([location], {
-                            'analytic_accounts': selection.id,
-                            })
-                for account in location.analytic_accounts.accounts:
-                    if account.root.id in selection_vals:
-                        value = selection_vals[account.root.id]
-                        if value:
-                            accounts.append(value)
-                    else:
-                        accounts.append(account.id)
-                for account_id in selection_vals.values():
-                    if account_id \
-                            and account_id not in accounts:
-                        accounts.append(account_id)
-                Selection.write([location.analytic_accounts], {
-                        'accounts': [('set', accounts)],
-                        })
-        return super(Location, cls).write(locations, vals)
+        actions = iter(args)
+        args = []
+        to_write = []
+        for locations, vals in zip(actions, actions):
+            vals = vals.copy()
+            selection_vals = {}
+            for field in vals.keys():
+                if field.startswith('analytic_account_'):
+                    root_id = int(field[len('analytic_account_'):])
+                    selection_vals[root_id] = vals[field]
+                    del vals[field]
+            if selection_vals:
+                for location in locations:
+                    accounts = []
+                    if not location.analytic_accounts:
+                        # Create missing selection
+                        with Transaction().set_user(0):
+                            selection, = Selection.create([{}])
+                        cls.write([location], {
+                                'analytic_accounts': selection.id,
+                                })
+                    for account in location.analytic_accounts.accounts:
+                        if account.root.id in selection_vals:
+                            value = selection_vals[account.root.id]
+                            if value:
+                                accounts.append(value)
+                        else:
+                            accounts.append(account.id)
+                    for account_id in selection_vals.values():
+                        if account_id \
+                                and account_id not in accounts:
+                            accounts.append(account_id)
+                    to_remove = list(
+                        set((a.id for a in
+                                location.analytic_accounts.accounts))
+                        - set(accounts))
+                    to_write.extend(([location.analytic_accounts], {
+                            'accounts': [
+                                ('remove', to_remove),
+                                ('add', accounts),
+                                ],
+                            }))
+            args.extend((locations, vals))
+        if to_write:
+            Selection.write(*to_write)
+        return super(Location, cls).write(*args)
 
     @classmethod
     def delete(cls, locations):

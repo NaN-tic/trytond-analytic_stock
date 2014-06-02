@@ -26,9 +26,9 @@ class Account:
         return accounts
 
     @classmethod
-    def write(cls, accounts, vals):
+    def write(cls, *args):
         Location = Pool().get('stock.location')
-        super(Account, cls).write(accounts, vals)
+        super(Account, cls).write(*args)
         # Restart the cache on the fields_view_get method of stock.location
         Location._fields_view_get_cache.clear()
 

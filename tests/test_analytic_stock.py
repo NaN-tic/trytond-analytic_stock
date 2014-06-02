@@ -35,6 +35,10 @@ class AnalyticStockTestCase(unittest.TestCase):
         self.journal = POOL.get('account.journal')
         self.analytic_account = POOL.get('analytic_account.account')
         self.move = POOL.get('stock.move')
+        self.party = POOL.get('party.party')
+        self.payment_term = POOL.get('account.invoice.payment_term')
+        self.purchase = POOL.get('purchase.purchase')
+        self.sale = POOL.get('sale.sale')
 
     def test0005views(self):
         '''
@@ -79,7 +83,9 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'parent': storage.id,
                         }])
 
-            company, = self.company.search([('rec_name', '=', 'B2CK')])
+            company, = self.company.search([
+                    ('rec_name', '=', 'Dunder Mifflin'),
+                    ])
             currency = company.currency
             self.user.write([self.user(USER)], {
                 'main_company': company.id,
@@ -94,14 +100,14 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'name': 'Root 1',
                         'code': 'R1',
                         'currency': currency.id,
-                        'company': company.id,
+                        'company': None,
                         'type': 'root',
                         'state': 'opened',
                         }, {
                         'name': 'Root 2',
                         'code': 'R2',
                         'currency': currency.id,
-                        'company': company.id,
+                        'company': None,
                         'type': 'root',
                         'state': 'opened',
                         }])
@@ -110,7 +116,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'name': 'Account R1-1',
                         'code': 'A11',
                         'currency': currency.id,
-                        'company': company.id,
+                        'company': None,
                         'type': 'normal',
                         'root': analytic_acc_r1.id,
                         'parent': analytic_acc_r1.id,
@@ -119,7 +125,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'name': 'Account R1-2',
                         'code': 'A12',
                         'currency': currency.id,
-                        'company': company.id,
+                        'company': None,
                         'type': 'normal',
                         'root': analytic_acc_r1.id,
                         'parent': analytic_acc_r1.id,
@@ -128,7 +134,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'name': 'Account R2-1',
                         'code': 'A21',
                         'currency': currency.id,
-                        'company': company.id,
+                        'company': None,
                         'type': 'normal',
                         'root': analytic_acc_r2.id,
                         'parent': analytic_acc_r2.id,
@@ -137,7 +143,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'name': 'Account R2-2',
                         'code': 'A22',
                         'currency': currency.id,
-                        'company': company.id,
+                        'company': None,
                         'type': 'normal',
                         'root': analytic_acc_r2.id,
                         'parent': analytic_acc_r2.id,
@@ -159,6 +165,43 @@ class AnalyticStockTestCase(unittest.TestCase):
 
             today = datetime.date.today()
 
+            #Create origin fields for moves
+            party, = self.party.create([{
+                        'name': 'Customer/Supplier',
+                        }])
+            term, = self.payment_term.create([{
+                        'name': 'Payment Term',
+                        'lines': [
+                            ('create', [{
+                                        'sequence': 0,
+                                        'type': 'remainder',
+                                        'months': 0,
+                                        'days': 0,
+                                        }])]
+                        }])
+            sale, = self.sale.create([{
+                        'party': party.id,
+                        'payment_term': term.id,
+                        'lines': [('create', [{
+                                        'quantity': 1.0,
+                                        'unit_price': Decimal(1),
+                                        'description': 'desc',
+                                        }])],
+
+                        }])
+            sale_line, = sale.lines
+            purchase, = self.purchase.create([{
+                        'party': party.id,
+                        'payment_term': term.id,
+                        'lines': [('create', [{
+                                        'quantity': 1.0,
+                                        'unit_price': Decimal(1),
+                                        'description': 'desc',
+                                        }])],
+
+                        }])
+            purchase_line, = purchase.lines
+
             moves = self.move.create([{
                         'product': product.id,
                         'uom': unit.id,
@@ -170,6 +213,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'company': company.id,
                         'unit_price': Decimal('1'),
                         'currency': currency.id,
+                        'origin': str(sale_line),
                         }, {
                         'product': product.id,
                         'uom': unit.id,
@@ -181,6 +225,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'company': company.id,
                         'unit_price': Decimal('1'),
                         'currency': currency.id,
+                        'origin': str(sale_line),
                         }, {
                         'product': product.id,
                         'uom': unit.id,
@@ -203,6 +248,7 @@ class AnalyticStockTestCase(unittest.TestCase):
                         'company': company.id,
                         'unit_price': Decimal('1'),
                         'currency': currency.id,
+                        'origin': str(sale_line),
                         }])
             self.move.do(moves)
 
@@ -210,10 +256,7 @@ class AnalyticStockTestCase(unittest.TestCase):
             self.assertTrue(not moves[0].income_analytic_lines)
             self.assertTrue(not moves[0].expense_analytic_lines)
             # supplier -> storage
-            self.assertEqual(
-                set([al.account.id for al in moves[1].income_analytic_lines]),
-                set([a.id for a in supplier.analytic_accounts.accounts])
-                )
+            self.assertTrue(not moves[1].income_analytic_lines)
             self.assertEqual(
                 set([al.account.id for al in moves[1].expense_analytic_lines]),
                 set([a.id for a in storage.analytic_accounts.accounts])
@@ -234,9 +277,11 @@ class AnalyticStockTestCase(unittest.TestCase):
 
 def suite():
     suite = trytond.tests.test_tryton.suite()
-    from trytond.modules.company.tests import test_company
-    for test in test_company.suite():
-        if test not in suite:
+    from trytond.modules.account.tests import test_account
+    for test in test_account.suite():
+        #Skip doctest
+        class_name = test.__class__.__name__
+        if test not in suite and class_name != 'DocFileCase':
             suite.addTest(test)
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(
         AnalyticStockTestCase))
