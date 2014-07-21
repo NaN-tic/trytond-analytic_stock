@@ -315,6 +315,8 @@ class Move:
             'currency': currency.id,
             'journal': journal and journal.id,
             'date': self.effective_date,
+            'debit': Decimal('0.0'),
+            'credit': Decimal('0.0'),
             }
         if type == 'income':
             base_vals['debit'] = amount
