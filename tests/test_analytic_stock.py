@@ -11,9 +11,7 @@ from trytond.transaction import Transaction
 
 
 class AnalyticStockTestCase(unittest.TestCase):
-    '''
-    Test AnalyticStock module.
-    '''
+    'Test AnalyticStock module'
 
     def setUp(self):
         trytond.tests.test_tryton.install_module('analytic_stock')
@@ -33,15 +31,11 @@ class AnalyticStockTestCase(unittest.TestCase):
         self.sale = POOL.get('sale.sale')
 
     def test0005views(self):
-        '''
-        Test views.
-        '''
+        'Test views'
         test_view('analytic_stock')
 
     def test0006depends(self):
-        '''
-        Test depends.
-        '''
+        'Test depends'
         test_depends()
 
     def test0010move_analytic_accounts(self):
