@@ -1,5 +1,5 @@
-#The COPYRIGHT file at the top level of this repository contains the full
-#copyright notices and license terms.
+# The COPYRIGHT file at the top level of this repository contains the full
+# copyright notices and license terms.
 from decimal import Decimal
 
 from trytond.model import Workflow, ModelView, fields
@@ -97,7 +97,7 @@ class Location:
                         for field in fields_names:
                             if field.startswith('analytic_account_'
                                     + str(account.root.id) + '.'):
-                                ham, field2 = field.split('.', 1)
+                                _, field2 = field.split('.', 1)
                                 id2record[location.id][field] = account[field2]
         return res
 
@@ -249,6 +249,7 @@ class Move:
         If 'unit_price' is empty it uses the cost_price.
         '''
         pool = Pool()
+        Currency = pool.get('currency.currency')
         PurchaseLine = pool.get('purchase.line')
         SaleLine = pool.get('sale.line')
         Uom = pool.get('product.uom')
@@ -265,25 +266,27 @@ class Move:
         if self.unit_price:
             amount = self.unit_price * Decimal(str(self.quantity))
             digits = self.uom.digits
-            currency = self.currency
+            if self.currency != self.company.currency:
+                with Transaction().set_context(date=self.effective_date):
+                    amount = Currency.compute(self.currency, amount,
+                        self.company.currency)
         else:
             qty = Uom.compute_qty(self.uom, self.quantity,
                 self.product.default_uom)
             amount = self.cost_price * Decimal(str(qty))
             digits = self.product.default_uom.digits
-            currency = self.company.currency
         amount = amount.quantize(Decimal(str(10.0 ** -digits)))
 
         vals = {}
         if income_analytic_accs and not isinstance(self.origin, SaleLine):
             income_lines_vals = self._get_analytic_lines_vals('income',
-                income_analytic_accs, amount, currency)
+                income_analytic_accs, amount)
             if income_lines_vals:
                 vals['income_analytic_lines'] = [('create', income_lines_vals)]
 
         if expense_analytic_accs and not isinstance(self.origin, PurchaseLine):
             expense_lines_vals = self._get_analytic_lines_vals('expense',
-                expense_analytic_accs, amount, currency)
+                expense_analytic_accs, amount)
             if expense_lines_vals:
                 vals['expense_analytic_lines'] = [
                     ('create', expense_lines_vals),
@@ -306,13 +309,12 @@ class Move:
         elif type == 'expense':
             return self.to_location.journal
 
-    def _get_analytic_lines_vals(self, type, analytic_accounts, amount,
-            currency):
+    def _get_analytic_lines_vals(self, type, analytic_accounts, amount):
         journal = self._get_journal_for_analytic(type)
 
         base_vals = {
             'name': self.rec_name,
-            'currency': currency.id,
+            'internal_company': self.company.id,
             'journal': journal and journal.id,
             'date': self.effective_date,
             'debit': Decimal('0.0'),
