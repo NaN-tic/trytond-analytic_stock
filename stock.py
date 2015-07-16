@@ -249,10 +249,8 @@ class Move:
         If 'unit_price' is empty it uses the cost_price.
         '''
         pool = Pool()
-        Currency = pool.get('currency.currency')
         PurchaseLine = pool.get('purchase.line')
         SaleLine = pool.get('sale.line')
-        Uom = pool.get('product.uom')
 
         income_analytic_accs = self._get_analytic_accounts('income')
         expense_analytic_accs = self._get_analytic_accounts('expense')
@@ -261,21 +259,7 @@ class Move:
             # same analytic accounts => no analytic cost/moves
             return
 
-        # unit_price is in move's UoM and currency. cost_price is in product's
-        # default_uom and company's currency
-        if self.unit_price:
-            amount = self.unit_price * Decimal(str(self.quantity))
-            digits = self.uom.digits
-            if self.currency != self.company.currency:
-                with Transaction().set_context(date=self.effective_date):
-                    amount = Currency.compute(self.currency, amount,
-                        self.company.currency)
-        else:
-            qty = Uom.compute_qty(self.uom, self.quantity,
-                self.product.default_uom)
-            amount = self.cost_price * Decimal(str(qty))
-            digits = self.product.default_uom.digits
-        amount = amount.quantize(Decimal(str(10.0 ** -digits)))
+        amount = self._get_analytic_amount()
 
         vals = {}
         if income_analytic_accs and not isinstance(self.origin, SaleLine):
@@ -294,35 +278,56 @@ class Move:
 
         return vals
 
-    def _get_analytic_accounts(self, type):
-        if type == 'income':
+    def _get_analytic_accounts(self, type_):
+        if type_ == 'income':
             return (self.from_location.analytic_accounts and
                 self.from_location.analytic_accounts.accounts or [])
-        elif type == 'expense':
+        elif type_ == 'expense':
             return (self.to_location.analytic_accounts and
                 self.to_location.analytic_accounts.accounts or [])
         return []
 
-    def _get_journal_for_analytic(self, type):
-        if type == 'income':
+    def _get_analytic_amount(self):
+        pool = Pool()
+        Currency = pool.get('currency.currency')
+        Uom = pool.get('product.uom')
+
+        # unit_price is in move's UoM and currency. cost_price is in product's
+        # default_uom and company's currency
+        if self.unit_price:
+            amount = self.unit_price * Decimal(str(self.quantity))
+            if self.currency != self.company.currency:
+                with Transaction().set_context(date=self.effective_date):
+                    amount = Currency.compute(self.currency, amount,
+                        self.company.currency)
+        else:
+            qty = Uom.compute_qty(self.uom, self.quantity,
+                self.product.default_uom)
+            amount = self.cost_price * Decimal(str(qty))
+
+        digits = self.company.currency.digits
+        return amount.quantize(Decimal(str(10.0 ** -digits)))
+
+    def _get_journal_for_analytic(self, type_):
+        if type_ == 'income':
             return self.from_location.journal
-        elif type == 'expense':
+        elif type_ == 'expense':
             return self.to_location.journal
 
-    def _get_analytic_lines_vals(self, type, analytic_accounts, amount):
-        journal = self._get_journal_for_analytic(type)
+    def _get_analytic_lines_vals(self, type_, analytic_accounts, amount):
+        journal = self._get_journal_for_analytic(type_)
 
         base_vals = {
             'name': self.rec_name,
             'internal_company': self.company.id,
             'journal': journal and journal.id,
             'date': self.effective_date,
-            'debit': Decimal('0.0'),
-            'credit': Decimal('0.0'),
+            'debit': Decimal(0),
+            'credit': Decimal(0),
             }
-        if type == 'income':
+        if type_ == 'income':
             base_vals['debit'] = amount
-        elif type == 'expense':
+        elif type_ == 'expense':
             base_vals['credit'] = amount
 
         if self.shipment:
