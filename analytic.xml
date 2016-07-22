@@ -6,7 +6,7 @@
         <!-- analytic_account.line -->
         <record model="ir.ui.view" id="analytic_line_view_form">
             <field name="model">analytic_account.line</field>
-            <field name="type">form</field>
+            <field name="type" eval="None"/>
             <field name="inherit" ref="analytic_account.line_view_form"/>
             <field name="name">analytic_line_form</field>
         </record>
