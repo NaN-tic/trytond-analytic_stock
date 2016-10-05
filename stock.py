@@ -129,20 +129,6 @@ class Move:
                 ('account', '!=', None),
                 ])
         return [e.account for e in entries]
-        # TODO: remove
-        # if type_ == 'income':
-        #     for location_company in self.from_location.companies:
-        #         if location_company.company.id == self.company.id:
-        #             return [e.account
-        #                 for e in location_company.analytic_accounts
-        #                 if e.account]
-        # elif type_ == 'expense':
-        #     for location_company in self.to_location.companies:
-        #         if location_company.company.id == self.company.id:
-        #             return [e.account
-        #                 for e in location_company.analytic_accounts
-        #                 if e.account]
-        # return []
 
     def _get_analytic_amount(self):
         pool = Pool()
