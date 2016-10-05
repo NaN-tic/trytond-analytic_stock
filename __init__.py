@@ -1,15 +1,13 @@
-#The COPYRIGHT file at the top level of this repository contains the full
-#copyright notices and license terms.
-
+# The COPYRIGHT file at the top level of this repository contains the full
+# copyright notices and license terms.
 from trytond.pool import Pool
-from .analytic import *
-from .stock import *
+
+import stock
 
 
 def register():
     Pool.register(
-        Location,
-        Account,
-        Line,
-        Move,
+        stock.AnalyticLine,
+        stock.Location,
+        stock.Move,
         module='analytic_stock', type_='model')

@@ -3,12 +3,9 @@
      copyright notices and license terms. -->
 <data>
     <xpath
-        expr="/form/field[@name='type']" position="after">
-        <group col="2" colspan="2" name="analytic_accounts">
-            <field name="analytic_accounts"/>
-        </group>
+        expr="/form/field[@name='companies']" position="before">
+        <newline/>
         <label name="journal"/>
         <field name="journal"/>
-        <newline/>
     </xpath>
 </data>

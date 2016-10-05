@@ -6,18 +6,21 @@ from trytond.model import Workflow, ModelView, fields
 from trytond.pool import Pool, PoolMeta
 from trytond.transaction import Transaction
 
-__all__ = ['Location', 'Move']
-__metaclass__ = PoolMeta
+__all__ = ['AnalyticLine', 'Location', 'Move']
+
+
+class AnalyticLine:
+    __metaclass__ = PoolMeta
+    __name__ = 'analytic_account.line'
+    income_stock_move = fields.Many2One('stock.move', 'Income Stock Move',
+            ondelete='CASCADE', readonly=True)
+    expense_stock_move = fields.Many2One('stock.move', 'Expense Stock Move',
+            ondelete='CASCADE', readonly=True)
 
 
 class Location:
+    __metaclass__ = PoolMeta
     __name__ = 'stock.location'
-    analytic_accounts = fields.Many2One('analytic_account.account.selection',
-        'Analytic Accounts',
-        help='It is used to manage analytical costs of Stock Moves. If you '
-        'fill up it, the stock movements from or to this location that '
-        'aren\'t to or from a location with the same Analytic Accounts will '
-        'generate an analytic line.')
     journal = fields.Many2One('account.journal', 'Journal')
 
     @classmethod
@@ -29,182 +32,16 @@ class Location:
     @classmethod
     def validate(cls, locations):
         for location in locations:
-            if (location.analytic_accounts and
-                    location.analytic_accounts.accounts and
-                    not location.journal):
+            if not location.journal and any(e.account
+                    for lc in location.companies
+                    for e in lc.analytic_accounts):
                 cls.raise_user_error('journal_required', location.rec_name)
 
         super(Location, cls).validate(locations)
 
-    @classmethod
-    def _view_look_dom_arch(cls, tree, type, field_children=None):
-        AnalyticAccount = Pool().get('analytic_account.account')
-        AnalyticAccount.convert_view(tree)
-        return super(Location, cls)._view_look_dom_arch(tree, type,
-            field_children=field_children)
-
-    @classmethod
-    def fields_get(cls, fields_names=None):
-        AnalyticAccount = Pool().get('analytic_account.account')
-
-        fields = super(Location, cls).fields_get(fields_names)
-
-        analytic_accounts_field = super(Location, cls).fields_get(
-                ['analytic_accounts'])['analytic_accounts']
-
-        fields.update(AnalyticAccount.analytic_accounts_fields_get(
-                analytic_accounts_field, fields_names))
-        return fields
-
-    @classmethod
-    def default_get(cls, fields, with_rec_name=True):
-        fields = [x for x in fields if not x.startswith('analytic_account_')]
-        return super(Location, cls).default_get(fields,
-            with_rec_name=with_rec_name)
-
-    @classmethod
-    def read(cls, ids, fields_names=None):
-        if fields_names:
-            fields_names2 = [x for x in fields_names
-                    if not x.startswith('analytic_account_')]
-        else:
-            fields_names2 = fields_names
-
-        res = super(Location, cls).read(ids, fields_names=fields_names2)
-
-        if not fields_names:
-            fields_names = cls._fields.keys()
-
-        root_ids = []
-        for field in fields_names:
-            if field.startswith('analytic_account_') and '.' not in field:
-                root_ids.append(int(field[len('analytic_account_'):]))
-        if root_ids:
-            id2record = {}
-            for record in res:
-                id2record[record['id']] = record
-            locations = cls.browse(ids)
-            for location in locations:
-                for root_id in root_ids:
-                    id2record[location.id]['analytic_account_'
-                        + str(root_id)] = None
-                if not location.analytic_accounts:
-                    continue
-                for account in location.analytic_accounts.accounts:
-                    if account.root.id in root_ids:
-                        id2record[location.id]['analytic_account_'
-                            + str(account.root.id)] = account.id
-                        for field in fields_names:
-                            if field.startswith('analytic_account_'
-                                    + str(account.root.id) + '.'):
-                                _, field2 = field.split('.', 1)
-                                id2record[location.id][field] = account[field2]
-        return res
-
-    @classmethod
-    def create(cls, vlist):
-        Selection = Pool().get('analytic_account.account.selection')
-        vlist = [x.copy() for x in vlist]
-        to_write = []
-        for vals in vlist:
-            selection_vals = {}
-            for field in vals.keys():
-                if field.startswith('analytic_account_'):
-                    if vals[field]:
-                        selection_vals.setdefault('accounts', [])
-                        selection_vals['accounts'].append(('add',
-                                [vals[field]]))
-                    del vals[field]
-            if vals.get('analytic_accounts'):
-                to_write.extend(([Selection(vals['analytic_accounts'])],
-                    selection_vals))
-            else:
-                selection, = Selection.create([selection_vals])
-                vals['analytic_accounts'] = selection.id
-
-        if to_write:
-            Selection.write(*to_write)
-
-        return super(Location, cls).create(vlist)
-
-    @classmethod
-    def write(cls, *args):
-        Selection = Pool().get('analytic_account.account.selection')
-        actions = iter(args)
-        args = []
-        to_write = []
-        for locations, vals in zip(actions, actions):
-            vals = vals.copy()
-            selection_vals = {}
-            for field in vals.keys():
-                if field.startswith('analytic_account_'):
-                    root_id = int(field[len('analytic_account_'):])
-                    selection_vals[root_id] = vals[field]
-                    del vals[field]
-            if selection_vals:
-                for location in locations:
-                    accounts = []
-                    if not location.analytic_accounts:
-                        # Create missing selection
-                        with Transaction().set_user(0):
-                            selection, = Selection.create([{}])
-                        cls.write([location], {
-                                'analytic_accounts': selection.id,
-                                })
-                    for account in location.analytic_accounts.accounts:
-                        if account.root.id in selection_vals:
-                            value = selection_vals[account.root.id]
-                            if value:
-                                accounts.append(value)
-                        else:
-                            accounts.append(account.id)
-                    for account_id in selection_vals.values():
-                        if account_id \
-                                and account_id not in accounts:
-                            accounts.append(account_id)
-                    to_remove = list(
-                        set((a.id for a in
-                                location.analytic_accounts.accounts))
-                        - set(accounts))
-                    to_write.extend(([location.analytic_accounts], {
-                            'accounts': [
-                                ('remove', to_remove),
-                                ('add', accounts),
-                                ],
-                            }))
-            args.extend((locations, vals))
-        if to_write:
-            Selection.write(*to_write)
-        return super(Location, cls).write(*args)
-
-    @classmethod
-    def delete(cls, locations):
-        Selection = Pool().get('analytic_account.account.selection')
-
-        selections = []
-        for location in locations:
-            if location.analytic_accounts:
-                selections.append(location.analytic_accounts)
-
-        super(Location, cls).delete(locations)
-        Selection.delete(selections)
-
-    @classmethod
-    def copy(cls, locations, default=None):
-        Selection = Pool().get('analytic_account.account.selection')
-
-        new_locations = super(Location, cls).copy(locations, default=default)
-
-        for location in new_locations:
-            if location.analytic_accounts:
-                selection, = Selection.copy([location.analytic_accounts])
-                cls.write([location], {
-                    'analytic_accounts': selection.id,
-                    })
-        return new_locations
-
 
 class Move:
+    __metaclass__ = PoolMeta
     __name__ = 'stock.move'
     income_analytic_lines = fields.One2Many('analytic_account.line',
         'income_stock_move', 'Income Analytic Lines', readonly=True,
@@ -279,13 +116,33 @@ class Move:
         return vals
 
     def _get_analytic_accounts(self, type_):
-        if type_ == 'income':
-            return (self.from_location.analytic_accounts and
-                self.from_location.analytic_accounts.accounts or [])
-        elif type_ == 'expense':
-            return (self.to_location.analytic_accounts and
-                self.to_location.analytic_accounts.accounts or [])
-        return []
+        pool = Pool()
+        AnalyticEntry = pool.get('analytic.account.entry')
+
+        entries = AnalyticEntry.search([
+                ('origin.company', '=', self.company,
+                    'stock.location.company'),
+                ('origin.location', '=',
+                    self.from_location if type_ == 'income'
+                    else self.to_location,
+                    'stock.location.company'),
+                ('account', '!=', None),
+                ])
+        return [e.account for e in entries]
+        # TODO: remove
+        # if type_ == 'income':
+        #     for location_company in self.from_location.companies:
+        #         if location_company.company.id == self.company.id:
+        #             return [e.account
+        #                 for e in location_company.analytic_accounts
+        #                 if e.account]
+        # elif type_ == 'expense':
+        #     for location_company in self.to_location.companies:
+        #         if location_company.company.id == self.company.id:
+        #             return [e.account
+        #                 for e in location_company.analytic_accounts
+        #                 if e.account]
+        # return []
 
     def _get_analytic_amount(self):
         pool = Pool()
