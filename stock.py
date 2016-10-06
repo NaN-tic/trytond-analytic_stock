@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from trytond.model import Workflow, ModelView, fields
 from trytond.pool import Pool, PoolMeta
+from trytond.pyson import Eval
 from trytond.transaction import Transaction
 
 __all__ = ['AnalyticLine', 'Location', 'Move']
@@ -21,7 +22,9 @@ class AnalyticLine:
 class Location:
     __metaclass__ = PoolMeta
     __name__ = 'stock.location'
-    journal = fields.Many2One('account.journal', 'Journal')
+    journal = fields.Many2One('account.journal', 'Journal', states={
+            'invisible': Eval('type', '') != 'storage',
+            }, depends=['type'])
 
     @classmethod
     def __setup__(cls):
@@ -30,11 +33,19 @@ class Location:
             'for location "%s" because it has analytic accounts defined.')
 
     @classmethod
+    def enabled_location_types(cls):
+        location_types = super(Location, cls).enabled_location_types()
+        if 'storage' not in location_types:
+            location_types.append('storage')
+        return location_types
+
+    @classmethod
     def validate(cls, locations):
         for location in locations:
-            if not location.journal and any(e.account
-                    for lc in location.companies
-                    for e in lc.analytic_accounts):
+            if (location.type == 'storage'
+                    and not location.journal and any(e.account
+                        for lc in location.companies
+                        for e in lc.analytic_accounts)):
                 cls.raise_user_error('journal_required', location.rec_name)
 
         super(Location, cls).validate(locations)
