@@ -1,17 +1,14 @@
 # The COPYRIGHT file at the top level of this repository contains the full
 # copyright notices and license terms.
 from decimal import Decimal
-
 from trytond.model import Workflow, ModelView, fields
 from trytond.pool import Pool, PoolMeta
-from trytond.pyson import Eval
 from trytond.transaction import Transaction
 
 __all__ = ['AnalyticLine', 'Location', 'Move']
 
 
-class AnalyticLine:
-    __metaclass__ = PoolMeta
+class AnalyticLine(metaclass=PoolMeta):
     __name__ = 'analytic_account.line'
     income_stock_move = fields.Many2One('stock.move', 'Income Stock Move',
             ondelete='CASCADE', readonly=True)
@@ -19,18 +16,8 @@ class AnalyticLine:
             ondelete='CASCADE', readonly=True)
 
 
-class Location:
-    __metaclass__ = PoolMeta
+class Location(metaclass=PoolMeta):
     __name__ = 'stock.location'
-    journal = fields.Many2One('account.journal', 'Journal', states={
-            'invisible': Eval('type', '') != 'storage',
-            }, depends=['type'])
-
-    @classmethod
-    def __setup__(cls):
-        super(Location, cls).__setup__()
-        cls._error_messages['journal_required'] = ('The journal is required '
-            'for location "%s" because it has analytic accounts defined.')
 
     @classmethod
     def enabled_location_types(cls):
@@ -39,20 +26,8 @@ class Location:
             location_types.append('storage')
         return location_types
 
-    @classmethod
-    def validate(cls, locations):
-        for location in locations:
-            if (location.type == 'storage'
-                    and not location.journal and any(e.account
-                        for lc in location.companies
-                        for e in lc.analytic_accounts)):
-                cls.raise_user_error('journal_required', location.rec_name)
 
-        super(Location, cls).validate(locations)
-
-
-class Move:
-    __metaclass__ = PoolMeta
+class Move(metaclass=PoolMeta):
     __name__ = 'stock.move'
     income_analytic_lines = fields.One2Many('analytic_account.line',
         'income_stock_move', 'Income Analytic Lines', readonly=True,
@@ -72,10 +47,8 @@ class Move:
         if default is None:
             default = {}
         default = default.copy()
-        default.update({
-                'income_analytic_lines': None,
-                'expense_analytic_lines': None,
-                })
+        default.setdefault('income_analytic_lines', None)
+        default.setdefault('expense_analytic_lines', None)
         return super(Move, cls).copy(moves, default=default)
 
     @classmethod
@@ -162,19 +135,9 @@ class Move:
         digits = self.company.currency.digits
         return amount.quantize(Decimal(str(10.0 ** -digits)))
 
-    def _get_journal_for_analytic(self, type_):
-        if type_ == 'income':
-            return self.from_location.journal
-        elif type_ == 'expense':
-            return self.to_location.journal
-
     def _get_analytic_lines_vals(self, type_, analytic_accounts, amount):
-        journal = self._get_journal_for_analytic(type_)
-
         base_vals = {
-            'name': self.rec_name,
             'internal_company': self.company.id,
-            'journal': journal and journal.id,
             'date': self.effective_date,
             'debit': Decimal(0),
             'credit': Decimal(0),

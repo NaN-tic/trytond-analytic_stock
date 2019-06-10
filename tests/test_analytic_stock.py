@@ -25,7 +25,6 @@ class AnalyticStockTestCase(ModuleTestCase):
         Template = pool.get('product.template')
         Uom = pool.get('product.uom')
         Location = pool.get('stock.location')
-        Journal = pool.get('account.journal')
         AnalyticAccount = pool.get('analytic_account.account')
         Move = pool.get('stock.move')
         Party = pool.get('party.party')
@@ -36,16 +35,11 @@ class AnalyticStockTestCase(ModuleTestCase):
         company = create_company()
         with set_company(company):
             create_chart(company)
-            journal_expense, = Journal.search([
-                    ('code', '=', 'EXP'),
-                    ])
-
             unit, = Uom.search([('name', '=', 'Unit')])
             template, = Template.create([{
                         'name': 'Test Move.income/expense_analytic_lines',
                         'type': 'goods',
                         'list_price': Decimal(4),
-                        'cost_price': Decimal(2),
                         'cost_price_method': 'fixed',
                         'default_uom': unit.id,
                         'products': [
@@ -115,7 +109,6 @@ class AnalyticStockTestCase(ModuleTestCase):
                                     ],
                                 }])
                         ],
-                    'journal': journal_expense.id,
                     })
             Location.write([storage], {
                     'companies': [
@@ -131,7 +124,6 @@ class AnalyticStockTestCase(ModuleTestCase):
                                     ],
                                 }])
                         ],
-                    'journal': journal_expense.id,
                     })
 
             today = datetime.date.today()
