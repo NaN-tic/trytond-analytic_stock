@@ -1,18 +1,18 @@
-# The COPYRIGHT file at the top level of this repository contains the full
-# copyright notices and license terms.
+
+# This file is part of Tryton.  The COPYRIGHT file at the top level of
+# this repository contains the full copyright notices and license terms.
+
 import datetime
-import unittest
 from decimal import Decimal
 
-import trytond.tests.test_tryton
 from trytond.tests.test_tryton import ModuleTestCase, with_transaction
 from trytond.pool import Pool
 
-from trytond.modules.company.tests import create_company, set_company
+from trytond.modules.company.tests import create_company, set_company, CompanyTestMixin
 from trytond.modules.account.tests import create_chart
 
 
-class AnalyticStockTestCase(ModuleTestCase):
+class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
     'Test AnalyticStock module'
     module = 'analytic_stock'
 
@@ -239,8 +239,4 @@ class AnalyticStockTestCase(ModuleTestCase):
                 )
 
 
-def suite():
-    suite = trytond.tests.test_tryton.suite()
-    suite.addTests(unittest.TestLoader().loadTestsFromTestCase(
-        AnalyticStockTestCase))
-    return suite
+del ModuleTestCase
