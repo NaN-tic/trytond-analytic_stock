@@ -165,7 +165,7 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
 
             moves = Move.create([{
                         'product': product.id,
-                        'uom': unit.id,
+                        'unit': unit.id,
                         'quantity': 5,
                         'from_location': supplier.id,
                         'to_location': customer.id,
@@ -177,7 +177,7 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
                         'origin': str(sale_line),
                         }, {
                         'product': product.id,
-                        'uom': unit.id,
+                        'unit': unit.id,
                         'quantity': 10,
                         'from_location': supplier.id,
                         'to_location': storage.id,
@@ -189,7 +189,7 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
                         'origin': str(sale_line),
                         }, {
                         'product': product.id,
-                        'uom': unit.id,
+                        'unit': unit.id,
                         'quantity': 5,
                         'from_location': storage.id,
                         'to_location': storage2.id,
@@ -200,7 +200,7 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
                         'currency': company.currency.id,
                         }, {
                         'product': product.id,
-                        'uom': unit.id,
+                        'unit': unit.id,
                         'quantity': 5,
                         'from_location': storage2.id,
                         'to_location': customer.id,
