@@ -12,7 +12,7 @@
         </record>
 
         <record model="ir.model.access" id="access_analytic_line_stock">
-            <field name="model" search="[('model', '=', 'analytic_account.line')]"/>
+            <field name="model">analytic_account.line</field>
             <field name="group" ref="stock.group_stock"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
