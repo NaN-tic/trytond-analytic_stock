@@ -172,8 +172,8 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
                         'planned_date': today,
                         'effective_date': today,
                         'company': company.id,
-                        'unit_price': Decimal('1'),
-                        'currency': company.currency.id,
+                        # 'unit_price': Decimal('1'),
+                        # 'currency': company.currency.id,
                         'origin': str(sale_line),
                         }, {
                         'product': product.id,
@@ -196,8 +196,8 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
                         'planned_date': today,
                         'effective_date': today,
                         'company': company.id,
-                        'unit_price': Decimal('1'),
-                        'currency': company.currency.id,
+                        # 'unit_price': Decimal('1'),
+                        # 'currency': company.currency.id,
                         }, {
                         'product': product.id,
                         'unit': unit.id,
@@ -223,11 +223,12 @@ class AnalyticStockTestCase(CompanyTestMixin, ModuleTestCase):
                 set([e.account.id for lc in storage.companies
                         for e in lc.analytic_accounts])
                 )
-            # storage -> storage2
+            # storage -> storage2. check that has not analytic
             self.assertEqual(
-                set([al.account.id for al in moves[2].income_analytic_lines]),
-                set([e.account.id for lc in storage.companies
-                        for e in lc.analytic_accounts])
+                set([al.account.id for move in moves
+                    if not move.unit_price_required
+                    for al in move.expense_analytic_lines]),
+                set([])
                 )
             self.assertTrue(not moves[2].expense_analytic_lines)
             # storage2 -> customer

@@ -73,6 +73,10 @@ class Move(metaclass=PoolMeta):
         PurchaseLine = pool.get('purchase.line')
         SaleLine = pool.get('sale.line')
 
+        # in case stock move has not unit_price, not create analytic
+        if not self.unit_price_required:
+            return
+
         income_analytic_accs = self._get_analytic_accounts('income')
         expense_analytic_accs = self._get_analytic_accounts('expense')
         if (set([a.id for a in income_analytic_accs]) ==
@@ -128,9 +132,9 @@ class Move(metaclass=PoolMeta):
                     amount = Currency.compute(self.currency, amount,
                         self.company.currency)
         else:
-            qty = Uom.compute_qty(self.uom, self.quantity,
+            qty = Uom.compute_qty(self.unit, self.quantity,
                 self.product.default_uom)
-            amount = self.cost_price * Decimal(str(qty))
+            amount = (self.cost_price or Decimal(0)) * Decimal(str(qty))
 
         digits = self.company.currency.digits
         return amount.quantize(Decimal(str(10.0 ** -digits)))
